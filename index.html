@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#1769aa">
+  <meta name="description" content="エネルギー管理士 電気の基礎を、頻出解法パターンで反復する完全オフライン学習PWA">
+  <title>電気の基礎 頻出トレーニング</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <button class="icon-button" id="homeButton" aria-label="ホームへ戻る">⌂</button>
+    <div class="header-title">
+      <strong>電気の基礎</strong>
+      <span>頻出解法トレーニング</span>
+    </div>
+    <span id="networkBadge" class="status-badge">確認中</span>
+  </header>
+
+  <main id="app" class="app-shell">
+    <section id="screen-home" class="screen active" aria-labelledby="homeTitle">
+      <div class="hero-card">
+        <p class="eyebrow">エネルギー管理士［電気分野］課目Ⅱ</p>
+        <h1 id="homeTitle">解き方を反復して、6割を取りにいく</h1>
+        <p>公式過去問8年分の出題傾向から、再出題されやすい解法を優先したオフライン問題集。</p>
+        <div class="hero-stats" id="heroStats"></div>
+      </div>
+
+      <div class="action-grid">
+        <button class="action-card primary" data-action="frequent">
+          <span class="action-icon">★</span><strong>頻出問題を練習</strong><small>最優先パターンから10問</small>
+        </button>
+        <button class="action-card" data-screen="practice">
+          <span class="action-icon">▦</span><strong>分野別練習</strong><small>分野・小分類・問題数を選択</small>
+        </button>
+        <button class="action-card" data-action="wrong">
+          <span class="action-icon">↺</span><strong>間違いを復習</strong><small>保存された誤答パターンを再出題</small>
+        </button>
+        <button class="action-card" data-screen="exam">
+          <span class="action-icon">◷</span><strong>模擬テスト</strong><small>10問・20問、解説は終了後</small>
+        </button>
+        <button class="action-card" data-screen="formulas">
+          <span class="action-icon">ƒ</span><strong>公式・解法一覧</strong><small>見分け方とミスまで確認</small>
+        </button>
+        <button class="action-card" data-screen="records">
+          <span class="action-icon">▥</span><strong>学習記録</strong><small>分野・パターン別の正答率</small>
+        </button>
+      </div>
+
+      <section class="panel compact-panel">
+        <div class="section-heading">
+          <div><p class="eyebrow">分析結果</p><h2>優先テーマ</h2></div>
+          <button class="text-button" data-screen="analysis">詳細を見る</button>
+        </div>
+        <div id="priorityPreview" class="priority-list"></div>
+      </section>
+    </section>
+
+    <section id="screen-practice" class="screen" aria-labelledby="practiceTitle">
+      <div class="section-heading"><div><p class="eyebrow">分野別練習</p><h1 id="practiceTitle">出題条件を選ぶ</h1></div></div>
+      <form id="practiceForm" class="panel form-panel">
+        <label>大分類<select id="categorySelect"><option value="">全分野</option></select></label>
+        <label>小分類<select id="subcategorySelect"><option value="">すべて</option></select></label>
+        <label>問題数<select id="questionCount"><option>5</option><option selected>10</option><option>20</option><option>30</option></select></label>
+        <div class="check-group">
+          <label class="check-card"><input id="frequentOnly" type="checkbox"><span><strong>頻出だけ</strong><small>優先度Aのみ</small></span></label>
+          <label class="check-card"><input id="weakOnly" type="checkbox"><span><strong>苦手指定だけ</strong><small>変圧器・フェーザ・計測誤差など</small></span></label>
+          <label class="check-card"><input id="weightedRandom" type="checkbox" checked><span><strong>頻度を反映</strong><small>高頻度ほど出やすくする</small></span></label>
+        </div>
+        <p id="poolCount" class="notice"></p>
+        <button class="primary-button" type="submit">練習を始める</button>
+      </form>
+    </section>
+
+    <section id="screen-exam" class="screen" aria-labelledby="examTitle">
+      <div class="section-heading"><div><p class="eyebrow">模擬テスト</p><h1 id="examTitle">問題数を選ぶ</h1></div></div>
+      <div class="panel exam-options">
+        <button class="exam-card" data-exam-count="10"><strong>10問</strong><span>制限時間 15分</span><small>短時間の実戦確認</small></button>
+        <button class="exam-card" data-exam-count="20"><strong>20問</strong><span>制限時間 30分</span><small>分野配分を広く確認</small></button>
+        <p>過去問の頻度を重みにして構成する。解答中はヒント・公式・正誤・解説を表示しない。</p>
+      </div>
+    </section>
+
+    <section id="screen-quiz" class="screen" aria-live="polite">
+      <div class="quiz-topbar">
+        <div><span id="quizModeLabel" class="tag"></span><strong id="quizProgress"></strong></div>
+        <div id="timerBox" class="timer" hidden>残り <strong id="timerText">--:--</strong></div>
+      </div>
+      <div class="progress-track"><span id="progressBar"></span></div>
+
+      <article class="question-card">
+        <div class="question-meta"><span id="questionCategory" class="tag soft"></span><span id="questionDifficulty"></span><span id="questionFrequency"></span></div>
+        <h1 id="questionTitle"></h1>
+        <p id="questionPrompt" class="question-text"></p>
+        <div id="questionDiagram" class="diagram" hidden></div>
+        <form id="answerForm" class="answer-area">
+          <div id="numericAnswer" class="numeric-row" hidden>
+            <label><span>答え</span><input id="answerInput" inputmode="decimal" autocomplete="off" placeholder="数値を入力"></label>
+            <label><span>単位</span><input id="unitInput" autocomplete="off" placeholder="例：V"></label>
+          </div>
+          <div id="choiceAnswer" class="choice-list" hidden></div>
+          <p id="answerMessage" class="answer-message" role="status"></p>
+          <button id="submitAnswer" class="primary-button" type="submit">解答する</button>
+        </form>
+
+        <div id="practiceTools" class="tool-row">
+          <button id="hintButton" class="secondary-button" type="button">ヒント</button>
+          <button id="formulaButton" class="secondary-button" type="button">使用公式</button>
+        </div>
+        <div id="quickHelp" class="quick-help" hidden></div>
+      </article>
+
+      <section id="explanationPanel" class="explanation-panel" hidden>
+        <div class="judgement" id="judgement"></div>
+        <div class="clue-box"><strong>🟦 問題文のどこで見分けるか</strong><p id="clueText"></p></div>
+        <div id="explanationSteps" class="steps"></div>
+        <button id="nextButton" class="primary-button" type="button">次の問題</button>
+      </section>
+    </section>
+
+    <section id="screen-result" class="screen" aria-labelledby="resultTitle">
+      <div class="result-hero panel">
+        <p class="eyebrow">結果</p><h1 id="resultTitle">採点結果</h1>
+        <div id="scoreCircle" class="score-circle"></div>
+        <p id="resultSummary"></p>
+        <div class="button-row"><button id="retryButton" class="primary-button">同じ条件でもう一度</button><button class="secondary-button" data-screen="home">ホームへ</button></div>
+      </div>
+      <div id="resultBreakdown" class="panel"></div>
+      <div id="examReview" class="review-list"></div>
+    </section>
+
+    <section id="screen-formulas" class="screen" aria-labelledby="formulaTitle">
+      <div class="section-heading"><div><p class="eyebrow">公式・語呂</p><h1 id="formulaTitle">使う条件まで覚える</h1></div></div>
+      <div class="toolbar"><input id="formulaSearch" type="search" placeholder="公式・テーマを検索"><select id="formulaCategory"><option value="">全分類</option></select></div>
+      <div id="formulaList" class="formula-list"></div>
+      <section class="panel mnemonic-panel">
+        <h2>自分の覚え方を追加</h2>
+        <form id="mnemonicForm" class="inline-form">
+          <input id="mnemonicTitle" required placeholder="テーマ（例：相互インダクタンス）">
+          <input id="mnemonicText" required placeholder="覚え方">
+          <button class="secondary-button" type="submit">登録</button>
+        </form>
+        <div id="customMnemonicList"></div>
+      </section>
+    </section>
+
+    <section id="screen-records" class="screen" aria-labelledby="recordsTitle">
+      <div class="section-heading"><div><p class="eyebrow">学習記録</p><h1 id="recordsTitle">得点の偏りを確認する</h1></div></div>
+      <div id="recordCards" class="stat-grid"></div>
+      <section class="panel"><h2>分野別正答率</h2><div id="categoryStats"></div></section>
+      <section class="panel"><h2>問題パターン別</h2><div class="table-wrap"><table><thead><tr><th>パターン</th><th>回数</th><th>正解</th><th>正答率</th></tr></thead><tbody id="patternStats"></tbody></table></div></section>
+      <section class="panel"><h2>自動抽出した苦手</h2><div id="autoWeakList" class="chip-list"></div></section>
+      <div class="button-row"><button id="exportCsv" class="secondary-button">CSV出力</button><button id="resetHistory" class="danger-button">履歴をリセット</button></div>
+    </section>
+
+    <section id="screen-analysis" class="screen" aria-labelledby="analysisTitle">
+      <div class="section-heading"><div><p class="eyebrow">公式過去問 2018～2025</p><h1 id="analysisTitle">出題傾向と収録数</h1></div></div>
+      <section class="panel"><p>小問の連続空欄は、同じ導出を使うものを「解法パターン」単位に集約して数えた。公式問題文は転載せず、年度・論点・解法だけを整理している。</p><div class="table-wrap"><table><thead><tr><th>テーマ</th><th>確認年度数</th><th>優先度</th><th>収録パターン</th></tr></thead><tbody id="analysisTable"></tbody></table></div></section>
+      <section class="panel"><h2>年度別の確認結果</h2><div id="yearAnalysis" class="year-analysis"></div></section>
+    </section>
+  </main>
+
+  <footer class="app-footer"><span>問題パターン v<span id="dataVersion"></span></span><span>履歴はこのブラウザ内だけに保存</span></footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="questions.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
