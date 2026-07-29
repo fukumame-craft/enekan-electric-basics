@@ -58,7 +58,8 @@
     examEndAt: 0,
     lastConfig: null,
     currentScreen: 'home',
-    quizOrigin: 'home'
+    quizOrigin: 'home',
+    practiceMode: 'practice'
   };
 
   let history = loadHistory();
@@ -122,7 +123,7 @@
       return;
     }
     if (state.currentScreen === 'result') {
-      showScreen('home');
+      showScreen(state.quizOrigin || 'home');
       return;
     }
     showScreen('home');
@@ -190,7 +191,7 @@
     const s = summarizeAttempts();
     const calculationCount = DATA.selectPatterns({ kind: 'calculation' }).length;
     const knowledgeCount = DATA.selectPatterns({ kind: 'knowledge' }).length;
-    const termCount = DATA.PATTERNS.filter(p => /^N\d+$/.test(p.id)).length;
+    const termCount = DATA.TERM_LEDGER.length;
     $('#heroStats').innerHTML = `
       <span>計算 ${calculationCount}パターン</span>
       <span>知識 ${knowledgeCount}（単語 ${termCount}）</span>
@@ -213,6 +214,23 @@
     const values = [...new Set(DATA.PATTERNS.filter(p => !cat || p.category === cat).map(p => p.subcategory))].sort();
     $('#subcategorySelect').innerHTML = '<option value="">すべて</option>' + values.map(v => `<option>${escapeHtml(v)}</option>`).join('');
     updatePracticePool();
+  }
+
+  function openPractice(mode = 'practice') {
+    state.practiceMode = mode;
+    const randomMode = mode === 'random';
+    $('#practiceEyebrow').textContent = randomMode ? 'ランダム出題' : 'カテゴリ別練習';
+    $('#practiceTitle').textContent = randomMode ? '問題数と対象を選ぶ' : '出題条件を選ぶ';
+    $('#practiceSubmit').textContent = randomMode ? 'ランダム出題を始める' : '練習を始める';
+    if (randomMode) {
+      $('#categorySelect').value = '';
+      updateSubcategories();
+      $('#subcategorySelect').value = '';
+      $('#questionKindSelect').value = '';
+      $('#weakOnly').checked = false;
+      $('#weightedRandom').checked = false;
+    }
+    showScreen('practice');
   }
 
   function practiceFilters() {
@@ -248,6 +266,10 @@
         return;
       }
       quiz = DATA.buildQuiz(count, config.filters || {}, Boolean(config.weighted));
+    }
+
+    if (quiz.length < count) {
+      toast(`固定問題の重複を避け、利用可能な${quiz.length}問で開始した。`);
     }
 
     state.quizOrigin = state.currentScreen || 'home';
@@ -332,17 +354,12 @@
   }
 
   function compactExplanation(q) {
-    if (q.questionKind === 'calculation') {
-      const calculation = [q.steps[3]?.text, q.steps[4]?.text].filter(Boolean).join('\n');
-      return [
-        { label: '解法', text: `${q.clue}\n${q.formula}` },
-        { label: '計算', text: calculation },
-        { label: '注意', text: q.steps[7]?.text || '' }
-      ];
-    }
+    if (Array.isArray(q.steps) && q.steps.length === 4) return q.steps;
     return [
-      { label: '根拠', text: `${q.clue}\n${q.formula}` },
-      { label: '注意', text: q.steps[7]?.text || '' }
+      { label: '1. 判断ポイント', text: `🟦 ${q.clue || '問題文の条件を確認する。'}` },
+      { label: '2. 公式・根拠', text: `🟦 ${q.formula || '定義と出題条件を対応させる。'}` },
+      { label: '3. 計算または説明', text: `🟦 正解：${q.answerText}` },
+      { label: '4. 間違いやすい点', text: '🟦 似た用語・式の適用条件を混同しない。' }
     ];
   }
 
@@ -577,15 +594,19 @@
 
   function bindEvents() {
     $('#brandButton').addEventListener('click', () => showScreen('home'));
+    $('#headerHome').addEventListener('click', () => showScreen('home'));
     $('#backButton').addEventListener('click', goBack);
     document.addEventListener('click', event => {
       const screenButton = event.target.closest('[data-screen]');
-      if (screenButton) showScreen(screenButton.dataset.screen);
+      if (screenButton) {
+        if (screenButton.dataset.screen === 'practice') openPractice('practice');
+        else showScreen(screenButton.dataset.screen);
+      }
 
       const action = event.target.closest('[data-action]')?.dataset.action;
       if (action === 'calculation') startQuiz({ count: 10, filters: { kind: 'calculation' }, weighted: true, mode: 'practice' });
       if (action === 'knowledge') startQuiz({ count: 10, filters: { kind: 'knowledge' }, weighted: true, mode: 'practice' });
-      if (action === 'random') startQuiz({ count: 10, filters: {}, weighted: false, mode: 'random' });
+      if (action === 'random') openPractice('random');
       if (action === 'wrong') {
         const ids = wrongPatternIds();
         startQuiz({ count: Math.min(Math.max(ids.length * 2, 5), 20), ids, mode: 'review' });
@@ -595,7 +616,7 @@
       if (examCount) startQuiz({ count: Number(examCount), filters: {}, weighted: true, mode: 'exam', minutes: Number(examCount) === 10 ? 15 : 30 });
 
       const patternId = event.target.closest('[data-pattern]')?.dataset.pattern;
-      if (patternId) startQuiz({ count: 5, ids: [patternId], mode: 'practice' });
+      if (patternId) startQuiz({ count: 1, ids: [patternId], mode: 'practice' });
 
       const deleteId = event.target.closest('[data-delete-mnemonic]')?.dataset.deleteMnemonic;
       if (deleteId) {
@@ -612,7 +633,7 @@
     $('#weakOnly').addEventListener('change', updatePracticePool);
     $('#practiceForm').addEventListener('submit', event => {
       event.preventDefault();
-      startQuiz({ count: Number($('#questionCount').value), filters: practiceFilters(), weighted: $('#weightedRandom').checked, mode: 'practice' });
+      startQuiz({ count: Number($('#questionCount').value), filters: practiceFilters(), weighted: $('#weightedRandom').checked, mode: state.practiceMode });
     });
 
     $('#answerForm').addEventListener('submit', handleAnswerSubmit);

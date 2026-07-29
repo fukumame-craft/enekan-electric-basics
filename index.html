@@ -17,10 +17,10 @@
     <button class="brand-button" id="brandButton" type="button" aria-label="ホームへ戻る">
       <img src="icons/icon-192.png" alt="">
     </button>
-    <div class="header-title">
+    <button class="header-title" id="headerHome" type="button" aria-label="ホームへ戻る">
       <strong>電気の基礎</strong>
       <span>頻出4択トレーニング</span>
-    </div>
+    </button>
   </header>
 
   <main id="app" class="app-shell">
@@ -42,7 +42,7 @@
           <span class="action-icon">▦</span><strong>カテゴリ別出題</strong><small>分野・問題種別・問題数を選ぶ</small>
         </button>
         <button class="action-card" data-action="random">
-          <span class="action-icon">⤨</span><strong>ランダム出題</strong><small>全カテゴリからランダムに10問</small>
+          <span class="action-icon">⤨</span><strong>ランダム出題</strong><small>問題数・対象カテゴリを選ぶ</small>
         </button>
         <button class="action-card" data-action="wrong">
           <span class="action-icon">↺</span><strong>間違いを復習</strong><small>保存された誤答パターンを再出題</small>
@@ -60,7 +60,7 @@
     </section>
 
     <section id="screen-practice" class="screen" aria-labelledby="practiceTitle">
-      <div class="section-heading"><div><p class="eyebrow">分野別練習</p><h1 id="practiceTitle">出題条件を選ぶ</h1></div></div>
+      <div class="section-heading"><div><p class="eyebrow" id="practiceEyebrow">分野別練習</p><h1 id="practiceTitle">出題条件を選ぶ</h1></div></div>
       <form id="practiceForm" class="panel form-panel">
         <label>大分類<select id="categorySelect"><option value="">全分野</option></select></label>
         <label>小分類<select id="subcategorySelect"><option value="">すべて</option></select></label>
@@ -71,7 +71,7 @@
           <label class="check-card"><input id="weightedRandom" type="checkbox" checked><span><strong>頻度を反映</strong><small>高頻度ほど出やすくする</small></span></label>
         </div>
         <p id="poolCount" class="notice"></p>
-        <button class="primary-button" type="submit">練習を始める</button>
+        <button class="primary-button" id="practiceSubmit" type="submit">練習を始める</button>
       </form>
     </section>
 
