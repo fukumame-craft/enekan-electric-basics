@@ -1,5 +1,5 @@
 'use strict';
-const CACHE_VERSION = 'enekan-pwa-v1.0.0';
+const CACHE_VERSION = 'enekan-pwa-v1.1.0';
 const APP_SHELL = [
   './',
   './index.html',

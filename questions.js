@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const CATEGORIES = {
     theory: '電気・電子理論',
     control: '自動制御',
@@ -81,15 +81,54 @@
       { label: '8. 間違いやすい点', text: trap }
     ];
   }
+  function uniqueChoices(list) {
+    return [...new Set(list.filter(Boolean))];
+  }
+  function buildNumericOptions(answer, unit, digits = 3) {
+    const correct = `${fmt(answer, digits)}${unit ? ' ' + unit : ''}`;
+    const abs = Math.abs(answer);
+    const scale = abs >= 10 ? Math.max(1, abs * 0.1) : Math.max(0.05, abs * 0.2 || 0.2);
+    const rawCandidates = [
+      answer * 1.1,
+      answer * 0.9,
+      answer * 1.2,
+      answer * 0.8,
+      answer + scale,
+      answer - scale,
+      answer + scale * 2,
+      answer - scale * 2,
+      answer * 10,
+      answer / 10,
+      abs,
+      -abs
+    ].filter(v => Number.isFinite(v));
+
+    const formatted = uniqueChoices(rawCandidates.map(v => `${fmt(v, digits)}${unit ? ' ' + unit : ''}`)).filter(v => v !== correct);
+    const options = [correct];
+    for (const item of formatted) {
+      if (options.length >= 4) break;
+      options.push(item);
+    }
+    let step = scale || 1;
+    while (options.length < 4) {
+      step += Math.max(scale * 0.5, 0.1);
+      const extra = `${fmt(answer + step, digits)}${unit ? ' ' + unit : ''}`;
+      if (!options.includes(extra)) options.push(extra);
+    }
+    return shuffle(options.slice(0, 4));
+  }
   function numericQuestion(meta, data) {
+    const numericAnswer = round(data.answer, data.digits ?? 6);
     const answerText = `${fmt(data.answer, data.digits ?? 3)}${data.unit ? ' ' + data.unit : ''}`;
     return {
       ...meta,
-      type: 'number',
+      type: 'choice',
       prompt: data.prompt,
       diagram: data.diagram || '',
-      answer: round(data.answer, data.digits ?? 6),
+      options: buildNumericOptions(numericAnswer, data.unit || '', data.digits ?? 3),
+      answer: answerText,
       answerText,
+      numericAnswer,
       unit: data.unit || '',
       acceptedUnits: data.acceptedUnits || (data.unit ? [data.unit] : []),
       requireUnit: data.requireUnit ?? Boolean(data.unit),

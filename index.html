@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#1769aa">
-  <meta name="description" content="エネルギー管理士 電気の基礎を、頻出解法パターンで反復する完全オフライン学習PWA">
-  <title>電気の基礎 頻出トレーニング</title>
+  <meta name="description" content="エネルギー管理士 電気の基礎を4択で反復する完全オフライン学習PWA">
+  <title>電気の基礎 4択トレーニング</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -16,9 +16,8 @@
     <button class="icon-button" id="homeButton" aria-label="ホームへ戻る">⌂</button>
     <div class="header-title">
       <strong>電気の基礎</strong>
-      <span>頻出解法トレーニング</span>
+      <span>4択トレーニング</span>
     </div>
-    <span id="networkBadge" class="status-badge">確認中</span>
   </header>
 
   <main id="app" class="app-shell">
@@ -26,8 +25,7 @@
       <div class="hero-card">
         <p class="eyebrow">エネルギー管理士［電気分野］課目Ⅱ</p>
         <h1 id="homeTitle">解き方を反復して、6割を取りにいく</h1>
-        <p>公式過去問8年分の出題傾向から、再出題されやすい解法を優先したオフライン問題集。</p>
-        <div class="hero-stats" id="heroStats"></div>
+                <div class="hero-stats" id="heroStats"></div>
       </div>
 
       <div class="action-grid">
@@ -50,14 +48,6 @@
           <span class="action-icon">▥</span><strong>学習記録</strong><small>分野・パターン別の正答率</small>
         </button>
       </div>
-
-      <section class="panel compact-panel">
-        <div class="section-heading">
-          <div><p class="eyebrow">分析結果</p><h2>優先テーマ</h2></div>
-          <button class="text-button" data-screen="analysis">詳細を見る</button>
-        </div>
-        <div id="priorityPreview" class="priority-list"></div>
-      </section>
     </section>
 
     <section id="screen-practice" class="screen" aria-labelledby="practiceTitle">
@@ -98,11 +88,7 @@
         <p id="questionPrompt" class="question-text"></p>
         <div id="questionDiagram" class="diagram" hidden></div>
         <form id="answerForm" class="answer-area">
-          <div id="numericAnswer" class="numeric-row" hidden>
-            <label><span>答え</span><input id="answerInput" inputmode="decimal" autocomplete="off" placeholder="数値を入力"></label>
-            <label><span>単位</span><input id="unitInput" autocomplete="off" placeholder="例：V"></label>
-          </div>
-          <div id="choiceAnswer" class="choice-list" hidden></div>
+          <div id="choiceAnswer" class="choice-list"></div>
           <p id="answerMessage" class="answer-message" role="status"></p>
           <button id="submitAnswer" class="primary-button" type="submit">解答する</button>
         </form>

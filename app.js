@@ -175,8 +175,11 @@
       <span>解答 ${s.total}問</span>
       <span>正答率 ${formatRate(s.correct, s.total)}</span>
       <span>連続正解 ${history.streak}問</span>`;
-    $('#priorityPreview').innerHTML = DATA.ANALYSIS_SUMMARY.priority.slice(0, 4).map(row => `
-      <div class="priority-item"><div><strong>${escapeHtml(row.theme)}</strong><br><small>8年中 ${row.years}年度で確認</small></div><span class="tag">${escapeHtml(row.importance)}</span></div>`).join('');
+    const preview = $('#priorityPreview');
+    if (preview) {
+      preview.innerHTML = DATA.ANALYSIS_SUMMARY.priority.slice(0, 4).map(row => `
+        <div class="priority-item"><div><strong>${escapeHtml(row.theme)}</strong><br><small>8年中 ${row.years}年度で確認</small></div><span class="tag">${escapeHtml(row.importance)}</span></div>`).join('');
+    }
   }
 
   function populateSelectors() {
@@ -271,35 +274,19 @@
     $('#practiceTools').hidden = state.mode === 'exam';
     $('#timerBox').hidden = state.mode !== 'exam';
 
-    if (q.type === 'number') {
-      $('#numericAnswer').hidden = false;
-      $('#choiceAnswer').hidden = true;
-      $('#answerInput').value = '';
-      $('#unitInput').value = '';
-      $('#unitInput').placeholder = q.unit ? `例：${q.unit}` : '不要';
-      $('#unitInput').disabled = !q.requireUnit;
-      setTimeout(() => $('#answerInput').focus(), 30);
-    } else {
-      $('#numericAnswer').hidden = true;
-      $('#choiceAnswer').hidden = false;
-      $('#choiceAnswer').innerHTML = q.options.map((option, i) => `
-        <label class="choice-option"><input type="radio" name="choice" value="${escapeAttr(option)}"><span>${String.fromCharCode(65 + i)}. ${escapeHtml(option)}</span></label>`).join('');
-    }
+    $('#choiceAnswer').hidden = false;
+    $('#choiceAnswer').innerHTML = q.options.map((option, i) => `
+      <label class="choice-option"><input type="radio" name="choice" value="${escapeAttr(option)}"><span>${String.fromCharCode(65 + i)}. ${escapeHtml(option)}</span></label>`).join('');
   }
 
   function readAnswer(q) {
-    if (q.type === 'number') {
-      return { value: $('#answerInput').value.trim(), unit: $('#unitInput').value.trim() };
-    }
     const checked = $('input[name="choice"]:checked');
     return checked ? { value: checked.value, unit: '' } : null;
   }
 
   function judge(q, answer) {
     if (!answer) return { correct: false, missing: true, reason: '答えを選択して。' };
-    if (q.type === 'choice') return { correct: answer.value === q.answer, reason: '' };
-    if (!answer.value) return { correct: false, missing: true, reason: '数値を入力して。' };
-    return DATA.checkNumeric(answer.value, q.answer, q.tolerance, answer.unit, q.acceptedUnits, q.requireUnit);
+    return { correct: answer.value === q.answer, reason: '' };
   }
 
   function handleAnswerSubmit(event) {
@@ -471,8 +458,11 @@
   }
 
   function renderAnalysis() {
-    $('#analysisTable').innerHTML = DATA.ANALYSIS_SUMMARY.priority.map(row => `<tr><td>${escapeHtml(row.theme)}</td><td>${typeof row.years === 'number' ? `${row.years}/8` : escapeHtml(row.years)}</td><td>${escapeHtml(row.importance)}</td><td>${row.patterns}</td></tr>`).join('');
-    $('#yearAnalysis').innerHTML = YEAR_DETAILS.map(row => `<article class="year-card"><h3>${row.year}</h3><ul>${row.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></article>`).join('');
+    const table = $('#analysisTable');
+    const years = $('#yearAnalysis');
+    if (!table || !years) return;
+    table.innerHTML = DATA.ANALYSIS_SUMMARY.priority.map(row => `<tr><td>${escapeHtml(row.theme)}</td><td>${typeof row.years === 'number' ? `${row.years}/8` : escapeHtml(row.years)}</td><td>${escapeHtml(row.importance)}</td><td>${row.patterns}</td></tr>`).join('');
+    years.innerHTML = YEAR_DETAILS.map(row => `<article class="year-card"><h3>${row.year}</h3><ul>${row.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></article>`).join('');
   }
 
   function exportCsv() {
@@ -505,6 +495,7 @@
 
   function updateNetworkBadge() {
     const badge = $('#networkBadge');
+    if (!badge) return;
     if (navigator.onLine) {
       badge.textContent = 'オンライン';
       badge.classList.remove('offline');
