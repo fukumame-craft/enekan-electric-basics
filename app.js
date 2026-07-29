@@ -135,9 +135,7 @@
 
   function displayQuestionTitle(q) {
     if (q.questionKind !== 'knowledge') return q.title;
-    if (q.knowledgeType === 'verified-pair') return '用語と説明の組合せ';
-    if (q.knowledgeType === 'verified-application') return '出題場面から用語を判断';
-    if (q.knowledgeType === 'verified-term' || q.knowledgeType === 'term') return '説明から専門用語を選ぶ';
+    if (q.knowledgeType === 'exam-cloze') return '公式過去問型・空欄補充';
     return '知識・判断問題';
   }
 
@@ -202,7 +200,7 @@
     const termCount = DATA.TERM_LEDGER.length;
     $('#heroStats').innerHTML = `
       <span>計算 ${calculationCount}パターン</span>
-      <span>知識 ${knowledgeCount}（単語 ${termCount}）</span>
+      <span>知識 ${knowledgeCount}（過去問型）</span>
       <span>正答率 ${formatRate(s.correct, s.total)}</span>
       <span>連続正解 ${history.streak}問</span>`;
   }

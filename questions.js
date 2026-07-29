@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = '1.5.1';
+  const VERSION = '1.5.2';
   const CATEGORIES = {
     theory: '電気・電子理論',
     control: '自動制御',
@@ -562,109 +562,88 @@
   function findTerm(name) {
     return TERM_LEDGER.find(t => t.term === name);
   }
-  function verifiedTermOptions(item) {
-    const names = uniqueChoices([item.term, ...item.distractors]);
-    if (names.length < 4) {
-      TERM_LEDGER.filter(t => t.category === item.category && t.term !== item.term).forEach(t => names.push(t.term));
-    }
-    return uniqueChoices(names).slice(0, 4);
+  function exactOccurrence(item, group) {
+    return item.occurrences.find(o =>
+      o.year === group.year &&
+      o.problem === group.problem &&
+      o.subquestion === group.subquestion &&
+      o.summary === group.summary &&
+      o.origin.includes('選択肢')
+    );
   }
-  function distractorDifference(item, options) {
-    const rows = options.filter(name => name !== item.term).map(name => {
+  function termsInOfficialAnswerGroup(group) {
+    return TERM_LEDGER.filter(item => exactOccurrence(item, group)).map(item => item.term);
+  }
+  function safeDefinition(item) {
+    let text = item.definition.trim();
+    for (const name of [item.term, ...item.variants, ...item.abbreviations]) {
+      if (!name) continue;
+      text = text.split(name).join('その語句');
+    }
+    return text;
+  }
+  function safeSummary(item, group) {
+    const text = group.summary.trim();
+    const names = [item.term, ...item.variants, ...item.abbreviations].filter(Boolean);
+    return names.some(name => text.includes(name)) ? 'このテーマ' : text;
+  }
+  function deterministicOptions(item, group, targetIndex) {
+    const officialPool = termsInOfficialAnswerGroup(group).filter(name => name !== item.term);
+    const sameSub = officialPool.filter(name => findTerm(name)?.subcategory === item.subcategory);
+    const other = officialPool.filter(name => !sameSub.includes(name));
+    const ordered = uniqueChoices([...sameSub, ...other]);
+    if (ordered.length < 3) return [];
+    const offset = targetIndex % ordered.length;
+    const rotated = ordered.slice(offset).concat(ordered.slice(0, offset));
+    return [item.term, ...rotated.slice(0, 3)];
+  }
+  function examKnowledgeSteps(item, group, optionNames) {
+    const differences = optionNames.filter(name => name !== item.term).map(name => {
       const other = findTerm(name);
       return other ? `${name}：${other.definition}` : name;
-    });
-    return rows.length ? `「${item.term}」は${item.definition}\n他の選択肢は、${rows.join('／')}` : '名称と役割を一対一で対応させる。';
-  }
-  function termPrompt(item, index) {
-    const alias = item.variants[0] || item.abbreviations[0];
-    if (alias) {
-      const latinTerm = /^[A-Z0-9][A-Z0-9 ./+-]*$/i.test(item.term);
-      return latinTerm
-        ? `正式名称・表記「${alias}」に対応する略語または名称を選べ。`
-        : `過去問で用いられた表記「${alias}」に対応する正式表記を選べ。`;
-    }
-    const forms = [
-      `次の説明に該当する専門用語を選べ。\n${item.definition}`,
-      `問題文で次の働き・特徴を示す名称はどれか。\n${item.definition}`,
-      `直近8年の公式過去問に登場した用語のうち、次の定義に合うものを選べ。\n${item.definition}`,
-      `次の条件を表す最も適切な専門用語を選べ。\n${item.definition}`
-    ];
-    return forms[index % forms.length];
-  }
-  function knowledgeSteps(item, optionNames, judgement) {
+    }).join('\n');
     return [
-      {label:'1. 判断ポイント',text:`🟦 ${judgement}`},
-      {label:'2. 公式・根拠',text:`🟦 ${occurrenceText(item)}で表記を確認。`},
-      {label:'3. 計算または説明',text:`🟦 正解用語：${item.term}\n${item.definition}`},
-      {label:'4. 間違いやすい点',text:`🟦 ${distractorDifference(item, optionNames)}`}
+      {label:'1. 判断ポイント',text:`🟦 ${safeSummary(item, group)}の文脈で、空欄前後の働き・特徴を確認する。`},
+      {label:'2. 公式・根拠',text:`🟦 ${group.year}年度 問題${group.problem} ${group.subquestion}の解答群で確認された語句。`},
+      {label:'3. 計算または説明',text:`🟦 正解：${item.term}
+${item.definition}`},
+      {label:'4. 間違いやすい点',text:`🟦 同じ解答群の近い語句と混同しない。
+${differences}`}
     ];
   }
 
-  TERM_LEDGER.filter(item => item.quizEligible).forEach((item, index) => {
-    const sourceYears = item.years.map(year => YEAR_CODE[year]);
-    const optionNames = verifiedTermOptions(item);
-    if (optionNames.length !== 4) return;
-    const frequency = Math.min(9, Math.max(2, item.count + 2));
-    const alias = item.variants[0] || item.abbreviations[0];
-    const judgement = alias ? `「${alias}」と正式表記「${item.term}」の対応を確認する。` : `定義の中心は「${item.definition}」`;
-    add(meta(`LQ-${item.id}`, item.category, item.subcategory, item.term, frequency, 'A', item.count >= 3 ? '標準' : '易', false, sourceYears), () =>
-      choiceQuestion({knowledgeType:'verified-term',termId:item.id,optionTerms:optionNames}, {
-        prompt: termPrompt(item, index),
-        options: optionNames,
-        answer: item.term,
-        hint: alias ? `表記対応：${alias} ↔ ${item.term}` : `定義の中心語を拾う：${item.definition}`,
-        formula: `公式過去問での確認箇所：${occurrenceText(item)}`,
-        clue: alias ? `略語・表記揺れと正式表記を対応させる。` : `「${item.definition}」という役割・特徴から判断する。`,
-        steps: knowledgeSteps(item, optionNames, judgement)
-      })
-    );
+  // 知識問題は、公式問題の実際の解答群と出題文脈を再現した空欄補充型だけを有効化する。
+  // 単語台帳の全語を機械的に定義問題へ変換する方式は使用しない。
+  const EXAM_KNOWLEDGE_GROUPS = [{"year":2018,"problem":5,"subquestion":"(3)","summary":"コンピュータ構成と性能","targets":["中央処理装置","キャッシュメモリ","MIPS","MFLOPS"]},{"year":2018,"problem":5,"subquestion":"(4)","summary":"有線LANの接続形態と媒体","targets":["スター型","バス型","リング型","光ファイバ"]},{"year":2018,"problem":6,"subquestion":"(1)","summary":"オシロスコープとX-Y表示","targets":["掃引速度","トリガ電圧","リサジュー図形","振幅"]},{"year":2018,"problem":6,"subquestion":"(2)","summary":"温度センサの原理と結線","targets":["抵抗温度計","熱電温度計","白金測温抵抗体","三線式","自己加熱"]},{"year":2019,"problem":5,"subquestion":"(2)","summary":"極と二次遅れ応答","targets":["極","複素左半平面","共役複素根","オーバーシュート"]},{"year":2019,"problem":5,"subquestion":"(3)","summary":"論理回路とフリップフロップ","targets":["真理値表","NAND回路","RSフリップフロップ","Dフリップフロップ","JKフリップフロップ"]},{"year":2019,"problem":5,"subquestion":"(4)","summary":"ハードディスクの記録単位","targets":["セクタ","トラック","ファイル","ディレクトリ"]},{"year":2019,"problem":6,"subquestion":"(1)","summary":"校正・SI単位の定義","targets":["校正","トレーサビリティ","国際単位系","プランク定数","電気素量"]},{"year":2019,"problem":6,"subquestion":"(2)","summary":"オペアンプ増幅回路","targets":["演算増幅器","反転入力端子","非反転入力端子","負帰還","入力インピーダンス"]},{"year":2020,"problem":5,"subquestion":"(2)","summary":"RASISとシステム稼働率","targets":["RASIS","信頼性","可用性","保守性","完全性","安全性"]},{"year":2020,"problem":5,"subquestion":"(3)","summary":"プログラミング言語","targets":["コンパイラ型言語","インタプリタ型言語","ソースコード","機械語","ライブラリ"]},{"year":2020,"problem":6,"subquestion":"(1)","summary":"直流電力測定と電池評価","targets":["接続誤差","内部抵抗","直流法","交流法","内部インピーダンス"]},{"year":2020,"problem":6,"subquestion":"(2)","summary":"湿度測定","targets":["相対湿度","絶対湿度","乾湿球湿度計","鏡面冷却式露点計","露点計"]},{"year":2021,"problem":5,"subquestion":"(2)","summary":"情報セキュリティ","targets":["機密性","完全性","可用性","アクセス制御","ユーザー認証","ファイアウォール"]},{"year":2021,"problem":5,"subquestion":"(3)","summary":"半導体メモリ","targets":["DRAM","SRAM","リフレッシュ","フラッシュROM","キャッシュメモリ"]},{"year":2021,"problem":6,"subquestion":"(1)","summary":"デジタルオシロスコープ","targets":["標本化","量子化","エイリアシング","標本化周波数","高速フーリエ変換"]},{"year":2022,"problem":5,"subquestion":"(1)","summary":"帰還制御系の構成と安定性","targets":["目標値","偏差","制御器","制御対象","検出器","閉ループ伝達関数","限界安定","不安定"]},{"year":2022,"problem":5,"subquestion":"(3)","summary":"IPアドレスとプロトコル","targets":["IPアドレス","MACアドレス","DHCP","HTTP","FTP"]},{"year":2022,"problem":5,"subquestion":"(4)","summary":"二進数と文字コード","targets":["二進数","2の補数","ASCII","Unicode","文字コード"]},{"year":2022,"problem":6,"subquestion":"(1)","summary":"交流ブリッジ測定","targets":["平衡条件","検流計","浮遊容量","ケルビンダブルブリッジ","変圧器ブリッジ","電流比較器ブリッジ"]},{"year":2023,"problem":5,"subquestion":"(2)","summary":"データ形式","targets":["JPEG","GIF","MPEG","WAVE","AIFF"]},{"year":2023,"problem":5,"subquestion":"(3)","summary":"通信方式と誤り検出","targets":["単方向通信","半二重通信","全二重通信","パリティビット","垂直パリティチェック","伝送速度"]},{"year":2023,"problem":6,"subquestion":"(1)","summary":"計測誤差と計器特性","targets":["系統誤差","偶然誤差","器差","視差","感度","分解能","不感帯","標準偏差"]},{"year":2024,"problem":5,"subquestion":"(2)","summary":"ハードディスク構造","targets":["クラスタ","シリンダ","パーティション","トラック","セクタ"]},{"year":2024,"problem":5,"subquestion":"(3)","summary":"ネットワーク機器と規格","targets":["リピータ","スイッチングハブ","ゲートウェイ","ファイアウォール","アクセスポイント","VPN","DMZ","Wi-Fi"]},{"year":2024,"problem":6,"subquestion":"(1)","summary":"A/D変換と量子化雑音","targets":["A/D変換","量子化","量子化雑音","一様分布","実効値","有効数字","ビット深度"]},{"year":2025,"problem":5,"subquestion":"(1) 選択肢","summary":"安定判別法","targets":["ナイキストの安定判別法","ラウスの安定判別法","リアプノフの安定判別法","むだ時間要素"]},{"year":2025,"problem":5,"subquestion":"(2)","summary":"RAIDと記憶装置","targets":["RAID 1","RAID 5","ミラーリング","パリティ","ホットスワップ","バックアップ","ストレージ"]},{"year":2025,"problem":5,"subquestion":"(3)","summary":"処理方式・インタフェース・OSI","targets":["バッチ処理","対話型処理","イベント処理","アプリケーション層","プレゼンテーション層","セッション層","USB","HDMI","SCSI"]},{"year":2025,"problem":6,"subquestion":"(2)","summary":"測定方法","targets":["直接測定","間接測定","偏位法","零位法","補償法","差動法","ブリッジ測定","電位差計","絶対測定"]}];
 
-    // 複数箇所で確認した用語は、定義・特徴の組合せ問題も追加する。
-    if (item.count >= 2) {
-      const distractorItems = optionNames.slice(1).map(findTerm);
-      if (distractorItems.every(Boolean)) {
-        const correctPair = `${item.term}：${item.definition}`;
-        const pairOptions = [
-          correctPair,
-          `${distractorItems[0].term}：${distractorItems[1].definition}`,
-          `${distractorItems[1].term}：${distractorItems[2].definition}`,
-          `${distractorItems[2].term}：${distractorItems[0].definition}`
-        ];
-        add(meta(`LQ-PAIR-${item.id}`, item.category, item.subcategory, `${item.term}の定義・特徴`, frequency + 1, 'A', '標準', false, sourceYears), () =>
-          choiceQuestion({knowledgeType:'verified-pair',termId:item.id,optionTerms:optionNames}, {
-            prompt:'用語と説明の組合せとして、正しいものを選べ。',
-            options:pairOptions,
-            answer:correctPair,
-            hint:`「${item.term}」の定義は「${item.definition}」`,
-            formula:`公式過去問での確認箇所：${occurrenceText(item)}`,
-            clue:'用語だけでなく、役割・特徴が一致しているかを一組ずつ確認する。',
-            steps:[
-              {label:'1. 判断ポイント',text:`🟦 正しい組合せは「${item.term}」とその定義。`},
-              {label:'2. 公式・根拠',text:`🟦 ${occurrenceText(item)}で用語を確認。`},
-              {label:'3. 計算または説明',text:`🟦 ${correctPair}`},
-              {label:'4. 間違いやすい点',text:'🟦 説明だけが正しくても、左側の用語と一致しなければ誤り。'}
-            ]
-          })
-        );
-      }
-    }
+  EXAM_KNOWLEDGE_GROUPS.forEach(group => {
+    group.targets.forEach((termName, targetIndex) => {
+      const item = findTerm(termName);
+      if (!item || !exactOccurrence(item, group)) return;
+      const optionNames = deterministicOptions(item, group, targetIndex);
+      if (optionNames.length !== 4) return;
+      const sourceYears = [YEAR_CODE[group.year]];
+      const frequency = Math.min(9, Math.max(3, item.count + 2));
+      add(meta(`EX-${group.year}-${group.problem}-${String(group.subquestion).replace(/[^0-9A-Za-z]+/g,'')}-${item.id}`, item.category, item.subcategory, '公式過去問型・空欄補充', frequency, 'A', item.count >= 3 ? '標準' : '易', false, sourceYears), () =>
+        choiceQuestion({
+          knowledgeType:'exam-cloze',
+          termId:item.id,
+          optionTerms:optionNames,
+          source:{year:group.year,problem:group.problem,subquestion:group.subquestion,summary:group.summary}
+        }, {
+          prompt:`次の文章の〔　〕に入る最も適切な語句を、解答群から選べ。
 
-    // 3回以上確認した頻出語は、実際の出題論点に寄せた判断・応用問題を追加する。
-    if (item.count >= 3) {
-      const occurrence = item.occurrences[item.occurrences.length - 1];
-      add(meta(`LQ-APP-${item.id}`, item.category, item.subcategory, `${item.term}の出題場面`, Math.min(9, frequency + 2), 'A', '標準', false, sourceYears), () =>
-        choiceQuestion({knowledgeType:'verified-application',termId:item.id,optionTerms:optionNames}, {
-          prompt:`${occurrence.year}年度 問題${occurrence.problem}の「${occurrence.summary}」に関連して、次の働き・特徴をもつ用語を選べ。\n${item.definition}`,
+${safeSummary(item, group)}について考える。
+〔　〕は、${safeDefinition(item)}`,
           options:optionNames,
           answer:item.term,
-          hint:`出題場面「${occurrence.summary}」と定義を対応させる。`,
-          formula:`公式過去問での確認箇所：${occurrenceText(item)}`,
-          clue:'年度・論点の文脈と、用語の役割を同時に確認する。',
-          steps:knowledgeSteps(item, optionNames, `出題場面「${occurrence.summary}」と「${item.definition}」を結び付ける。`)
+          hint:`空欄の後ろにある働き・特徴と、同じ解答群の語句を対応させる。`,
+          formula:`確認箇所：${group.year}年度 問題${group.problem} ${group.subquestion} 解答群`,
+          clue:`${safeSummary(item, group)}の文脈から判断する。`,
+          steps:examKnowledgeSteps(item, group, optionNames)
         })
       );
-    }
+    });
   });
 
   const FORMULAS = [
@@ -697,13 +676,13 @@
     return pattern.questionKind;
   }
 
-  const ACTIVE_PATTERNS = PATTERNS.filter(p => VERIFIED_CALC_IDS.has(p.id) || p.id.startsWith('LQ-'));
+  const ACTIVE_PATTERNS = PATTERNS.filter(p => VERIFIED_CALC_IDS.has(p.id) || p.id.startsWith('EX-'));
   const ACTIVE_FORMULAS = FORMULAS.filter(item => item.patterns.length && item.patterns.some(id => VERIFIED_CALC_IDS.has(id)));
   const categoryCounts = Object.keys(CATEGORIES).map(category => ({
     theme: CATEGORIES[category],
     years: new Set(TERM_LEDGER.filter(t => t.category === category).flatMap(t => t.years)).size,
     importance: '公式8年分の実出題語',
-    patterns: PATTERNS.filter(p => p.id.startsWith('LQ-') && p.category === category).length
+    patterns: PATTERNS.filter(p => p.id.startsWith('EX-') && p.category === category).length
   }));
   const ANALYSIS_SUMMARY = {
     years:['令和7','令和6','令和5','令和4','令和3','令和2','令和元','平成30'],
