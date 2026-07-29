@@ -312,6 +312,7 @@
     $('#answerMessage').textContent = '';
     $('#answerMessage').className = 'answer-message';
     $('#explanationPanel').hidden = true;
+    $('#nextButton').hidden = true;
     $('#quickHelp').hidden = true;
     $('#quickHelp').innerHTML = '';
     $('#submitAnswer').disabled = false;
@@ -378,6 +379,7 @@
     $('#answerMessage').textContent = correct ? '○ 正解' : `× 不正解　正解：${q.answerText}${reason ? `（${reason}）` : ''}`;
     $('#explanationSteps').innerHTML = compactExplanation(q).map(step => `<section class="explanation-summary-section"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></section>`).join('');
     $('#nextButton').textContent = state.index === state.quiz.length - 1 ? '結果を見る' : '次の問題';
+    $('#nextButton').hidden = false;
     $('#explanationPanel').hidden = false;
     $('#progressBar').style.width = `${((state.index + 1) / state.quiz.length) * 100}%`;
   }
