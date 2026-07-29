@@ -135,6 +135,7 @@
 
   function displayQuestionTitle(q) {
     if (q.questionKind !== 'knowledge') return q.title;
+    if (q.knowledgeType === 'official-multi-blank') return '公式過去問対応・複数空欄';
     if (q.knowledgeType === 'exam-cloze') return '公式過去問型・空欄補充';
     return '知識・判断問題';
   }
@@ -149,7 +150,7 @@
     return { total, correct, wrong: total - correct, rate: total ? correct / total : 0 };
   }
 
-  function addAttempt(q, correct, mode) {
+  function addAttempt(q, correct, mode, score = null) {
     history.attempts.push({
       timestamp: new Date().toISOString(),
       patternId: q.patternId,
@@ -158,6 +159,8 @@
       title: q.title,
       questionKind: q.questionKind,
       correct: Boolean(correct),
+      correctBlanks: score?.correctCount ?? (correct ? 1 : 0),
+      totalBlanks: score?.totalCount ?? 1,
       mode
     });
     if (correct) {
@@ -321,18 +324,61 @@
     $('#timerBox').hidden = state.mode !== 'exam';
 
     $('#choiceAnswer').hidden = false;
-    $('#choiceAnswer').innerHTML = q.options.map((option, i) => `
-      <label class="choice-option"><input type="radio" name="choice" value="${escapeAttr(option)}"><span>${String.fromCharCode(65 + i)}. ${escapeHtml(option)}</span></label>`).join('');
+    if (q.type === 'multi-blank') {
+      const groups = q.answerGroups.map(group => `
+        <section class="exam-answer-group" data-group-id="${escapeAttr(group.id)}">
+          <h2>${escapeHtml(group.label)}</h2>
+          <div class="answer-group-options">
+            ${group.options.map(option => `<div class="answer-group-option"><strong>${escapeHtml(option.key)}</strong><span>${escapeHtml(option.text)}</span></div>`).join('')}
+          </div>
+        </section>`).join('');
+      const blankRows = q.blanks.map(blank => {
+        const group = q.answerGroups.find(item => item.id === blank.groupId);
+        return `<label class="blank-answer-row">
+          <span class="blank-label">〔${escapeHtml(blank.id)}〕</span>
+          <select name="blank-${escapeAttr(blank.id)}" aria-label="空欄${escapeAttr(blank.id)}の解答">
+            <option value="">記号を選択</option>
+            ${group.options.map(option => `<option value="${escapeAttr(option.key)}">${escapeHtml(option.key)}　${escapeHtml(option.text)}</option>`).join('')}
+          </select>
+        </label>`;
+      }).join('');
+      $('#choiceAnswer').innerHTML = `${groups}<section class="blank-answer-panel"><h2>解答</h2><div class="blank-answer-grid">${blankRows}</div></section>`;
+    } else {
+      $('#choiceAnswer').innerHTML = q.options.map((option, i) => `
+        <label class="choice-option"><input type="radio" name="choice" value="${escapeAttr(option)}"><span>${String.fromCharCode(65 + i)}. ${escapeHtml(option)}</span></label>`).join('');
+    }
   }
 
   function readAnswer(q) {
+    if (q.type === 'multi-blank') {
+      const values = {};
+      q.blanks.forEach(blank => {
+        values[blank.id] = $(`select[name="blank-${blank.id}"]`)?.value || '';
+      });
+      return { values };
+    }
     const checked = $('input[name="choice"]:checked');
     return checked ? { value: checked.value, unit: '' } : null;
   }
 
   function judge(q, answer) {
-    if (!answer) return { correct: false, missing: true, reason: '答えを選択して。' };
-    return { correct: answer.value === q.answer, reason: '' };
+    if (q.type === 'multi-blank') {
+      if (!answer || q.blanks.some(blank => !answer.values?.[blank.id])) {
+        return { correct: false, missing: true, reason: 'すべての空欄を選択して。', correctCount: 0, totalCount: q.blanks.length, details: [] };
+      }
+      const details = q.blanks.map(blank => ({
+        id: blank.id,
+        selectedKey: answer.values[blank.id],
+        answerKey: blank.answerKey,
+        answerText: blank.answerText,
+        correct: answer.values[blank.id] === blank.answerKey
+      }));
+      const correctCount = details.filter(item => item.correct).length;
+      return { correct: correctCount === details.length, missing: false, reason: '', correctCount, totalCount: details.length, details };
+    }
+    if (!answer) return { correct: false, missing: true, reason: '答えを選択して。', correctCount: 0, totalCount: 1, details: [] };
+    const correct = answer.value === q.answer;
+    return { correct, reason: '', correctCount: correct ? 1 : 0, totalCount: 1, details: [] };
   }
 
   function handleAnswerSubmit(event) {
@@ -347,7 +393,7 @@
       return;
     }
 
-    state.answers[state.index] = { raw, correct: result.correct, reason: result.reason };
+    state.answers[state.index] = { raw, correct: result.correct, reason: result.reason, correctCount: result.correctCount, totalCount: result.totalCount, details: result.details || [] };
     state.currentAnswered = true;
 
     if (state.mode === 'exam') {
@@ -356,8 +402,8 @@
       return;
     }
 
-    addAttempt(q, result.correct, state.mode);
-    showExplanation(q, result.correct, raw, result.reason);
+    addAttempt(q, result.correct, state.mode, result);
+    showExplanation(q, result, raw);
   }
 
   function compactExplanation(q) {
@@ -372,11 +418,19 @@
     ];
   }
 
-  function showExplanation(q, correct, raw, reason = '') {
+  function showExplanation(q, result, raw) {
     $('#submitAnswer').disabled = true;
-    $$('#choiceAnswer input').forEach(input => { input.disabled = true; });
+    $$('#choiceAnswer input, #choiceAnswer select').forEach(input => { input.disabled = true; });
+    const correct = result.correct;
     $('#answerMessage').className = `answer-message ${correct ? 'correct' : 'wrong'}`;
-    $('#answerMessage').textContent = correct ? '○ 正解' : `× 不正解　正解：${q.answerText}${reason ? `（${reason}）` : ''}`;
+    if (q.type === 'multi-blank') {
+      const answerList = q.blanks.map(blank => `〔${blank.id}〕${blank.answerKey} ${blank.answerText}`).join('／');
+      $('#answerMessage').textContent = correct
+        ? `○ 全問正解（${result.correctCount}/${result.totalCount}）`
+        : `△ ${result.correctCount}/${result.totalCount}正解　正答：${answerList}`;
+    } else {
+      $('#answerMessage').textContent = correct ? '○ 正解' : `× 不正解　正解：${q.answerText}${result.reason ? `（${result.reason}）` : ''}`;
+    }
     $('#explanationSteps').innerHTML = compactExplanation(q).map(step => `<section class="explanation-summary-section"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></section>`).join('');
     $('#nextButton').textContent = state.index === state.quiz.length - 1 ? '結果を見る' : '次の問題';
     $('#nextButton').hidden = false;
@@ -421,31 +475,52 @@
       state.quiz.forEach((q, index) => {
         const item = state.answers[index];
         const correct = Boolean(item && item.correct);
-        if (!item) state.answers[index] = { raw: null, correct: false, reason: '未解答' };
-        addAttempt(q, correct, 'exam');
+        if (!item) state.answers[index] = { raw: null, correct: false, reason: '未解答', correctCount: 0, totalCount: q.type === 'multi-blank' ? q.blanks.length : 1, details: [] };
+        addAttempt(q, correct, 'exam', state.answers[index]);
       });
     }
     renderResult();
     showScreen('result');
   }
 
+  function answerUnits(q, answer) {
+    const total = q.type === 'multi-blank' ? q.blanks.length : 1;
+    const correct = Number.isFinite(answer?.correctCount) ? answer.correctCount : (answer?.correct ? total : 0);
+    return { total, correct };
+  }
+
+  function formatUserAnswer(q, raw) {
+    if (!raw) return '未解答';
+    if (q.type === 'multi-blank') {
+      return q.blanks.map(blank => {
+        const key = raw.values?.[blank.id] || '未選択';
+        const group = q.answerGroups.find(item => item.id === blank.groupId);
+        const text = group?.options.find(option => option.key === key)?.text || '';
+        return `〔${blank.id}〕${key}${text ? ` ${text}` : ''}`;
+      }).join('／');
+    }
+    return `${raw.value}${raw.unit ? ` ${raw.unit}` : ''}`;
+  }
+
   function renderResult() {
-    const total = state.quiz.length;
-    const correct = state.answers.filter(a => a && a.correct).length;
+    const units = state.quiz.map((q, i) => answerUnits(q, state.answers[i]));
+    const total = units.reduce((sum, item) => sum + item.total, 0);
+    const correct = units.reduce((sum, item) => sum + item.correct, 0);
     const rate = total ? Math.round(correct / total * 100) : 0;
     $('#scoreCircle').textContent = `${correct}/${total}`;
-    $('#resultSummary').textContent = `正答率 ${rate}%　不正解 ${total - correct}問`;
+    $('#resultSummary').textContent = `空欄・設問別 正答率 ${rate}%　不正解 ${total - correct}`;
 
     const typeGroups = { calculation: { total: 0, correct: 0 }, knowledge: { total: 0, correct: 0 } };
     const groups = {};
     state.quiz.forEach((q, i) => {
+      const score = answerUnits(q, state.answers[i]);
       const key = categoryLabel(q.category);
       if (!groups[key]) groups[key] = { total: 0, correct: 0 };
-      groups[key].total += 1;
-      groups[key].correct += state.answers[i]?.correct ? 1 : 0;
+      groups[key].total += score.total;
+      groups[key].correct += score.correct;
       const kind = q.questionKind === 'knowledge' ? 'knowledge' : 'calculation';
-      typeGroups[kind].total += 1;
-      typeGroups[kind].correct += state.answers[i]?.correct ? 1 : 0;
+      typeGroups[kind].total += score.total;
+      typeGroups[kind].correct += score.correct;
     });
     $('#resultBreakdown').innerHTML = '<h2>問題種別</h2>' +
       barRow('計算問題', typeGroups.calculation.correct, typeGroups.calculation.total) +
@@ -456,10 +531,12 @@
     if (state.mode === 'exam') {
       $('#examReview').innerHTML = state.quiz.map((q, i) => {
         const a = state.answers[i];
-        const userText = a?.raw ? `${a.raw.value}${a.raw.unit ? ` ${a.raw.unit}` : ''}` : '未解答';
-        return `<details class="review-item ${a?.correct ? 'correct' : 'wrong'}">
-          <summary>${i + 1}. ${escapeHtml(displayQuestionTitle(q))} — ${a?.correct ? '正解' : '不正解'}</summary>
-          <p><strong>自分の答え：</strong>${escapeHtml(userText)}　<strong>正解：</strong>${escapeHtml(q.answerText)}</p>
+        const score = answerUnits(q, a);
+        const status = score.correct === score.total ? '全問正解' : `${score.correct}/${score.total}正解`;
+        return `<details class="review-item ${score.correct === score.total ? 'correct' : 'wrong'}">
+          <summary>${i + 1}. ${escapeHtml(displayQuestionTitle(q))} — ${status}</summary>
+          <p><strong>自分の答え：</strong>${escapeHtml(formatUserAnswer(q, a?.raw))}</p>
+          <p><strong>正解：</strong>${escapeHtml(q.answerText)}</p>
           <div class="explanation-summary">${compactExplanation(q).map(step => `<section class="explanation-summary-section"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></section>`).join('')}</div>
         </details>`;
       }).join('');
