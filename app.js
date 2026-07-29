@@ -133,6 +133,14 @@
     return DATA.CATEGORIES[key] || key;
   }
 
+  function displayQuestionTitle(q) {
+    if (q.questionKind !== 'knowledge') return q.title;
+    if (q.knowledgeType === 'verified-pair') return '用語と説明の組合せ';
+    if (q.knowledgeType === 'verified-application') return '出題場面から用語を判断';
+    if (q.knowledgeType === 'verified-term' || q.knowledgeType === 'term') return '説明から専門用語を選ぶ';
+    return '知識・判断問題';
+  }
+
   function formatRate(correct, total) {
     return total ? `${Math.round(correct / total * 100)}%` : '―';
   }
@@ -299,7 +307,7 @@
     $('#questionCategory').textContent = `${q.questionKind === 'calculation' ? '計算問題' : '知識問題'} / ${categoryLabel(q.category)} / ${q.subcategory}`;
     $('#questionDifficulty').textContent = `難易度：${q.difficulty}`;
     $('#questionFrequency').textContent = `頻度指標：${q.frequency}`;
-    $('#questionTitle').textContent = q.title;
+    $('#questionTitle').textContent = displayQuestionTitle(q);
     $('#questionPrompt').textContent = q.prompt;
     $('#questionDiagram').hidden = !q.diagram;
     $('#questionDiagram').innerHTML = q.diagram || '';
@@ -354,10 +362,12 @@
   }
 
   function compactExplanation(q) {
-    if (Array.isArray(q.steps) && q.steps.length === 4) return q.steps;
+    if (Array.isArray(q.steps) && q.steps.length) {
+      const selected = q.steps.filter(step => /^3\.|^4\./.test(step.label));
+      if (selected.length === 2) return selected;
+      if (q.steps.length >= 2) return q.steps.slice(-2);
+    }
     return [
-      { label: '1. 判断ポイント', text: `🟦 ${q.clue || '問題文の条件を確認する。'}` },
-      { label: '2. 公式・根拠', text: `🟦 ${q.formula || '定義と出題条件を対応させる。'}` },
       { label: '3. 計算または説明', text: `🟦 正解：${q.answerText}` },
       { label: '4. 間違いやすい点', text: '🟦 似た用語・式の適用条件を混同しない。' }
     ];
@@ -365,13 +375,13 @@
 
   function showExplanation(q, correct, raw, reason = '') {
     $('#submitAnswer').disabled = true;
-    $('#judgement').className = `judgement ${correct ? 'correct' : 'wrong'}`;
-    $('#judgement').textContent = correct ? '○ 正解' : `× 不正解　正解：${q.answerText}${reason ? `（${reason}）` : ''}`;
-    $('#explanationSteps').innerHTML = compactExplanation(q).map(step => `<div class="step compact-step"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></div>`).join('');
+    $$('#choiceAnswer input').forEach(input => { input.disabled = true; });
+    $('#answerMessage').className = `answer-message ${correct ? 'correct' : 'wrong'}`;
+    $('#answerMessage').textContent = correct ? '○ 正解' : `× 不正解　正解：${q.answerText}${reason ? `（${reason}）` : ''}`;
+    $('#explanationSteps').innerHTML = compactExplanation(q).map(step => `<section class="explanation-summary-section"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></section>`).join('');
     $('#nextButton').textContent = state.index === state.quiz.length - 1 ? '結果を見る' : '次の問題';
     $('#explanationPanel').hidden = false;
     $('#progressBar').style.width = `${((state.index + 1) / state.quiz.length) * 100}%`;
-    $('#explanationPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function nextQuestion() {
@@ -448,10 +458,9 @@
         const a = state.answers[i];
         const userText = a?.raw ? `${a.raw.value}${a.raw.unit ? ` ${a.raw.unit}` : ''}` : '未解答';
         return `<details class="review-item ${a?.correct ? 'correct' : 'wrong'}">
-          <summary>${i + 1}. ${escapeHtml(q.title)} — ${a?.correct ? '正解' : '不正解'}</summary>
+          <summary>${i + 1}. ${escapeHtml(displayQuestionTitle(q))} — ${a?.correct ? '正解' : '不正解'}</summary>
           <p><strong>自分の答え：</strong>${escapeHtml(userText)}　<strong>正解：</strong>${escapeHtml(q.answerText)}</p>
-          <p><strong>🟦 見分け方：</strong>${escapeHtml(q.clue)}</p>
-          ${compactExplanation(q).map(step => `<div class="step compact-step"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></div>`).join('')}
+          <div class="explanation-summary">${compactExplanation(q).map(step => `<section class="explanation-summary-section"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></section>`).join('')}</div>
         </details>`;
       }).join('');
     } else {
@@ -594,7 +603,6 @@
 
   function bindEvents() {
     $('#brandButton').addEventListener('click', () => showScreen('home'));
-    $('#headerHome').addEventListener('click', () => showScreen('home'));
     $('#backButton').addEventListener('click', goBack);
     document.addEventListener('click', event => {
       const screenButton = event.target.closest('[data-screen]');

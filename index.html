@@ -17,18 +17,13 @@
     <button class="brand-button" id="brandButton" type="button" aria-label="ホームへ戻る">
       <img src="icons/icon-192.png" alt="">
     </button>
-    <button class="header-title" id="headerHome" type="button" aria-label="ホームへ戻る">
-      <strong>電気の基礎</strong>
-      <span>頻出4択トレーニング</span>
-    </button>
   </header>
 
   <main id="app" class="app-shell">
-    <section id="screen-home" class="screen active" aria-labelledby="homeTitle">
+    <section id="screen-home" class="screen active" aria-label="ホーム">
       <div class="hero-card">
         <p class="eyebrow">エネルギー管理士［電気分野］課目Ⅱ</p>
-        <h1 id="homeTitle">頻出問題だけを、計算と知識に分けて反復</h1>
-                <div class="hero-stats" id="heroStats"></div>
+        <div class="hero-stats" id="heroStats"></div>
       </div>
 
       <div class="action-grid">
@@ -98,8 +93,10 @@
         <div id="questionDiagram" class="diagram" hidden></div>
         <form id="answerForm" class="answer-area">
           <div id="choiceAnswer" class="choice-list"></div>
-          <p id="answerMessage" class="answer-message" role="status"></p>
-          <button id="submitAnswer" class="primary-button" type="submit">解答する</button>
+          <div class="answer-submit-row">
+            <button id="submitAnswer" class="primary-button" type="submit">解答する</button>
+            <p id="answerMessage" class="answer-message" role="status" aria-live="polite"></p>
+          </div>
         </form>
 
         <div id="practiceTools" class="tool-row">
@@ -110,8 +107,7 @@
       </article>
 
       <section id="explanationPanel" class="explanation-panel" hidden>
-        <div class="judgement" id="judgement"></div>
-        <div id="explanationSteps" class="steps compact-steps"></div>
+        <div id="explanationSteps" class="explanation-summary"></div>
         <button id="nextButton" class="primary-button" type="button">次の問題</button>
       </section>
     </section>
