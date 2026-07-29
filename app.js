@@ -132,6 +132,7 @@
       category: q.category,
       subcategory: q.subcategory,
       title: q.title,
+      questionKind: q.questionKind,
       correct: Boolean(correct),
       mode
     });
@@ -170,16 +171,13 @@
 
   function renderHome() {
     const s = summarizeAttempts();
+    const calculationCount = DATA.selectPatterns({ kind: 'calculation' }).length;
+    const knowledgeCount = DATA.selectPatterns({ kind: 'knowledge' }).length;
     $('#heroStats').innerHTML = `
-      <span>収録 ${DATA.PATTERNS.length}パターン</span>
-      <span>解答 ${s.total}問</span>
+      <span>計算 ${calculationCount}パターン</span>
+      <span>知識 ${knowledgeCount}パターン</span>
       <span>正答率 ${formatRate(s.correct, s.total)}</span>
       <span>連続正解 ${history.streak}問</span>`;
-    const preview = $('#priorityPreview');
-    if (preview) {
-      preview.innerHTML = DATA.ANALYSIS_SUMMARY.priority.slice(0, 4).map(row => `
-        <div class="priority-item"><div><strong>${escapeHtml(row.theme)}</strong><br><small>8年中 ${row.years}年度で確認</small></div><span class="tag">${escapeHtml(row.importance)}</span></div>`).join('');
-    }
   }
 
   function populateSelectors() {
@@ -203,7 +201,7 @@
     return {
       category: $('#categorySelect').value || undefined,
       subcategory: $('#subcategorySelect').value || undefined,
-      frequentOnly: $('#frequentOnly').checked,
+      kind: $('#questionKindSelect')?.value || undefined,
       weakOnly: $('#weakOnly').checked
     };
   }
@@ -257,7 +255,7 @@
     $('#quizModeLabel').textContent = state.mode === 'exam' ? '模擬テスト' : state.mode === 'review' ? '復習' : '練習';
     $('#quizProgress').textContent = `${state.index + 1} / ${total}`;
     $('#progressBar').style.width = `${(state.index / total) * 100}%`;
-    $('#questionCategory').textContent = `${categoryLabel(q.category)} / ${q.subcategory}`;
+    $('#questionCategory').textContent = `${q.questionKind === 'calculation' ? '計算問題' : '知識問題'} / ${categoryLabel(q.category)} / ${q.subcategory}`;
     $('#questionDifficulty').textContent = `難易度：${q.difficulty}`;
     $('#questionFrequency').textContent = `頻度指標：${q.frequency}`;
     $('#questionTitle').textContent = q.title;
@@ -314,12 +312,28 @@
     showExplanation(q, result.correct, raw, result.reason);
   }
 
+  function compactExplanation(q) {
+    const isCalculation = q.questionKind === 'calculation';
+    const work = isCalculation
+      ? `${q.formula}
+${q.steps[3]?.text || ''}
+${q.steps[4]?.text || ''}`
+      : `${q.formula}
+${q.steps[4]?.text || q.answerText}`;
+    return [
+      { label: '要点', text: q.clue },
+      { label: isCalculation ? '式・計算' : '根拠', text: work },
+      { label: '答え', text: q.answerText },
+      { label: '注意', text: q.steps[7]?.text || '' }
+    ];
+  }
+
   function showExplanation(q, correct, raw, reason = '') {
     $('#submitAnswer').disabled = true;
     $('#judgement').className = `judgement ${correct ? 'correct' : 'wrong'}`;
     $('#judgement').textContent = correct ? '○ 正解' : `× 不正解　正解：${q.answerText}${reason ? `（${reason}）` : ''}`;
     $('#clueText').textContent = q.clue;
-    $('#explanationSteps').innerHTML = q.steps.map(step => `<div class="step"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></div>`).join('');
+    $('#explanationSteps').innerHTML = compactExplanation(q).map(step => `<div class="step compact-step"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></div>`).join('');
     $('#nextButton').textContent = state.index === state.quiz.length - 1 ? '結果を見る' : '次の問題';
     $('#explanationPanel').hidden = false;
     $('#progressBar').style.width = `${((state.index + 1) / state.quiz.length) * 100}%`;
@@ -378,14 +392,22 @@
     $('#scoreCircle').textContent = `${correct}/${total}`;
     $('#resultSummary').textContent = `正答率 ${rate}%　不正解 ${total - correct}問`;
 
+    const typeGroups = { calculation: { total: 0, correct: 0 }, knowledge: { total: 0, correct: 0 } };
     const groups = {};
     state.quiz.forEach((q, i) => {
       const key = categoryLabel(q.category);
       if (!groups[key]) groups[key] = { total: 0, correct: 0 };
       groups[key].total += 1;
       groups[key].correct += state.answers[i]?.correct ? 1 : 0;
+      const kind = q.questionKind === 'knowledge' ? 'knowledge' : 'calculation';
+      typeGroups[kind].total += 1;
+      typeGroups[kind].correct += state.answers[i]?.correct ? 1 : 0;
     });
-    $('#resultBreakdown').innerHTML = '<h2>分野別結果</h2>' + Object.entries(groups).map(([name, row]) => barRow(name, row.correct, row.total)).join('');
+    $('#resultBreakdown').innerHTML = '<h2>問題種別</h2>' +
+      barRow('計算問題', typeGroups.calculation.correct, typeGroups.calculation.total) +
+      barRow('知識問題', typeGroups.knowledge.correct, typeGroups.knowledge.total) +
+      '<h2 class="sub-result-title">分野別結果</h2>' +
+      Object.entries(groups).map(([name, row]) => barRow(name, row.correct, row.total)).join('');
 
     if (state.mode === 'exam') {
       $('#examReview').innerHTML = state.quiz.map((q, i) => {
@@ -395,7 +417,7 @@
           <summary>${i + 1}. ${escapeHtml(q.title)} — ${a?.correct ? '正解' : '不正解'}</summary>
           <p><strong>自分の答え：</strong>${escapeHtml(userText)}　<strong>正解：</strong>${escapeHtml(q.answerText)}</p>
           <p><strong>🟦 見分け方：</strong>${escapeHtml(q.clue)}</p>
-          ${q.steps.map(step => `<div class="step"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></div>`).join('')}
+          ${compactExplanation(q).map(step => `<div class="step compact-step"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></div>`).join('')}
         </details>`;
       }).join('');
     } else {
@@ -411,9 +433,11 @@
   function renderFormulas() {
     const query = $('#formulaSearch').value.trim().toLowerCase();
     const cat = $('#formulaCategory').value;
+    const activeIds = new Set(DATA.PATTERNS.map(p => p.id));
     const items = DATA.FORMULAS.filter(item => {
       const categoryKey = Object.entries(DATA.CATEGORIES).find(([, label]) => label === item.category)?.[0] || '';
       if (cat && categoryKey !== cat) return false;
+      if (!item.patterns.some(id => activeIds.has(id))) return false;
       const haystack = `${item.category} ${item.title} ${item.formula} ${item.clue} ${item.mistake}`.toLowerCase();
       return !query || haystack.includes(query);
     });
@@ -427,7 +451,7 @@
           <div><strong>問題文での見分け方</strong>${escapeHtml(item.clue)}</div>
           <div><strong>よくある間違い</strong>${escapeHtml(item.mistake)}</div>
         </div>
-        <div class="pattern-links">${item.patterns.map(id => `<button class="pattern-link" data-pattern="${id}">${id}を練習</button>`).join('') || '<span class="chip">補助公式</span>'}</div>
+        <div class="pattern-links">${item.patterns.filter(id => activeIds.has(id)).map(id => `<button class="pattern-link" data-pattern="${id}">${id}を練習</button>`).join('')}</div>
       </article>`).join('') : '<div class="panel">一致する公式がない。</div>';
     renderCustomMnemonics();
   }
@@ -444,11 +468,20 @@
       ['解答数', `${s.total}問`], ['正解数', `${s.correct}問`], ['正答率', formatRate(s.correct, s.total)], ['最高連続正解', `${history.bestStreak}問`]
     ].map(([label, value]) => `<div class="stat-card"><small>${label}</small><strong>${value}</strong></div>`).join('');
 
-    $('#categoryStats').innerHTML = Object.entries(DATA.CATEGORIES).map(([key, label]) => {
-      const rows = history.attempts.filter(a => a.category === key);
-      const c = rows.filter(a => a.correct).length;
-      return barRow(label, c, rows.length);
-    }).join('');
+    const patternById = new Map(DATA.PATTERNS.map(p => [p.id, p]));
+    const rowsWithKind = history.attempts.map(a => ({ ...a, resolvedKind: a.questionKind || patternById.get(a.patternId)?.questionKind || patternById.get(a.patternId)?.generate?.().questionKind }));
+    const calcRows = rowsWithKind.filter(a => a.resolvedKind === 'calculation');
+    const knowledgeRows = rowsWithKind.filter(a => a.resolvedKind === 'knowledge');
+    $('#categoryStats').innerHTML =
+      '<h3 class="record-subtitle">問題種別</h3>' +
+      barRow('計算問題', calcRows.filter(a => a.correct).length, calcRows.length) +
+      barRow('知識問題', knowledgeRows.filter(a => a.correct).length, knowledgeRows.length) +
+      '<h3 class="record-subtitle">分野別</h3>' +
+      Object.entries(DATA.CATEGORIES).map(([key, label]) => {
+        const rows = history.attempts.filter(a => a.category === key);
+        const c = rows.filter(a => a.correct).length;
+        return barRow(label, c, rows.length);
+      }).join('');
 
     const rows = patternStats().filter(r => r.attempts).sort((a, b) => (a.correct / a.attempts) - (b.correct / b.attempts));
     $('#patternStats').innerHTML = rows.length ? rows.map(row => `<tr><td>${row.pattern.id} ${escapeHtml(row.pattern.title)}</td><td>${row.attempts}</td><td>${row.correct}</td><td>${formatRate(row.correct, row.attempts)}</td></tr>`).join('') : '<tr><td colspan="4">まだ学習記録がない。</td></tr>';
@@ -466,8 +499,8 @@
   }
 
   function exportCsv() {
-    const header = ['日時', '問題ID', '大分類', '小分類', '問題名', '結果', 'モード'];
-    const rows = history.attempts.map(a => [a.timestamp, a.patternId, categoryLabel(a.category), a.subcategory, a.title, a.correct ? '正解' : '不正解', a.mode]);
+    const header = ['日時', '問題ID', '問題種別', '大分類', '小分類', '問題名', '結果', 'モード'];
+    const rows = history.attempts.map(a => [a.timestamp, a.patternId, a.questionKind === 'knowledge' ? '知識問題' : '計算問題', categoryLabel(a.category), a.subcategory, a.title, a.correct ? '正解' : '不正解', a.mode]);
     const csv = [header, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
     const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -532,7 +565,8 @@
       if (screenButton) showScreen(screenButton.dataset.screen);
 
       const action = event.target.closest('[data-action]')?.dataset.action;
-      if (action === 'frequent') startQuiz({ count: 10, filters: { frequentOnly: true }, weighted: true, mode: 'practice' });
+      if (action === 'calculation') startQuiz({ count: 10, filters: { kind: 'calculation' }, weighted: true, mode: 'practice' });
+      if (action === 'knowledge') startQuiz({ count: 10, filters: { kind: 'knowledge' }, weighted: true, mode: 'practice' });
       if (action === 'wrong') {
         const ids = wrongPatternIds();
         startQuiz({ count: Math.min(Math.max(ids.length * 2, 5), 20), ids, mode: 'review' });
@@ -554,7 +588,8 @@
 
     $('#categorySelect').addEventListener('change', updateSubcategories);
     $('#subcategorySelect').addEventListener('change', updatePracticePool);
-    $('#frequentOnly').addEventListener('change', updatePracticePool);
+    $('#frequentOnly')?.addEventListener('change', updatePracticePool);
+    $('#questionKindSelect')?.addEventListener('change', updatePracticePool);
     $('#weakOnly').addEventListener('change', updatePracticePool);
     $('#practiceForm').addEventListener('submit', event => {
       event.preventDefault();

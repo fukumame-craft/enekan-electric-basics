@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#1769aa">
-  <meta name="description" content="エネルギー管理士 電気の基礎を4択で反復する完全オフライン学習PWA">
-  <title>電気の基礎 4択トレーニング</title>
+  <meta name="description" content="エネルギー管理士 電気の基礎の頻出計算・知識問題を4択で反復する完全オフライン学習PWA">
+  <title>電気の基礎 頻出4択</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -16,7 +16,7 @@
     <button class="icon-button" id="homeButton" aria-label="ホームへ戻る">⌂</button>
     <div class="header-title">
       <strong>電気の基礎</strong>
-      <span>4択トレーニング</span>
+      <span>頻出4択トレーニング</span>
     </div>
   </header>
 
@@ -24,16 +24,16 @@
     <section id="screen-home" class="screen active" aria-labelledby="homeTitle">
       <div class="hero-card">
         <p class="eyebrow">エネルギー管理士［電気分野］課目Ⅱ</p>
-        <h1 id="homeTitle">解き方を反復して、6割を取りにいく</h1>
+        <h1 id="homeTitle">頻出問題だけを、計算と知識に分けて反復</h1>
                 <div class="hero-stats" id="heroStats"></div>
       </div>
 
       <div class="action-grid">
-        <button class="action-card primary" data-action="frequent">
-          <span class="action-icon">★</span><strong>頻出問題を練習</strong><small>最優先パターンから10問</small>
+        <button class="action-card primary" data-action="calculation">
+          <span class="action-icon">▣</span><strong>計算問題</strong><small>頻出の計算パターンを10問</small>
         </button>
-        <button class="action-card" data-screen="practice">
-          <span class="action-icon">▦</span><strong>分野別練習</strong><small>分野・小分類・問題数を選択</small>
+        <button class="action-card knowledge" data-action="knowledge">
+          <span class="action-icon">▤</span><strong>知識問題</strong><small>頻出論点の知識問題を10問</small>
         </button>
         <button class="action-card" data-action="wrong">
           <span class="action-icon">↺</span><strong>間違いを復習</strong><small>保存された誤答パターンを再出題</small>
@@ -55,9 +55,9 @@
       <form id="practiceForm" class="panel form-panel">
         <label>大分類<select id="categorySelect"><option value="">全分野</option></select></label>
         <label>小分類<select id="subcategorySelect"><option value="">すべて</option></select></label>
+        <label>問題種別<select id="questionKindSelect"><option value="">計算・知識を混ぜる</option><option value="calculation">計算問題</option><option value="knowledge">知識問題</option></select></label>
         <label>問題数<select id="questionCount"><option>5</option><option selected>10</option><option>20</option><option>30</option></select></label>
         <div class="check-group">
-          <label class="check-card"><input id="frequentOnly" type="checkbox"><span><strong>頻出だけ</strong><small>優先度Aのみ</small></span></label>
           <label class="check-card"><input id="weakOnly" type="checkbox"><span><strong>苦手指定だけ</strong><small>変圧器・フェーザ・計測誤差など</small></span></label>
           <label class="check-card"><input id="weightedRandom" type="checkbox" checked><span><strong>頻度を反映</strong><small>高頻度ほど出やすくする</small></span></label>
         </div>
@@ -71,7 +71,7 @@
       <div class="panel exam-options">
         <button class="exam-card" data-exam-count="10"><strong>10問</strong><span>制限時間 15分</span><small>短時間の実戦確認</small></button>
         <button class="exam-card" data-exam-count="20"><strong>20問</strong><span>制限時間 30分</span><small>分野配分を広く確認</small></button>
-        <p>過去問の頻度を重みにして構成する。解答中はヒント・公式・正誤・解説を表示しない。</p>
+        <p>計算問題と知識問題を混ぜた頻出構成。解答中はヒント・公式・正誤・解説を表示しない。</p>
       </div>
     </section>
 
@@ -137,7 +137,7 @@
     <section id="screen-records" class="screen" aria-labelledby="recordsTitle">
       <div class="section-heading"><div><p class="eyebrow">学習記録</p><h1 id="recordsTitle">得点の偏りを確認する</h1></div></div>
       <div id="recordCards" class="stat-grid"></div>
-      <section class="panel"><h2>分野別正答率</h2><div id="categoryStats"></div></section>
+      <section class="panel"><h2>問題種別・分野別正答率</h2><div id="categoryStats"></div></section>
       <section class="panel"><h2>問題パターン別</h2><div class="table-wrap"><table><thead><tr><th>パターン</th><th>回数</th><th>正解</th><th>正答率</th></tr></thead><tbody id="patternStats"></tbody></table></div></section>
       <section class="panel"><h2>自動抽出した苦手</h2><div id="autoWeakList" class="chip-list"></div></section>
       <div class="button-row"><button id="exportCsv" class="secondary-button">CSV出力</button><button id="resetHistory" class="danger-button">履歴をリセット</button></div>

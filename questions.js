@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
   const CATEGORIES = {
     theory: '電気・電子理論',
     control: '自動制御',
@@ -123,6 +123,7 @@
     return {
       ...meta,
       type: 'choice',
+      questionKind: 'calculation',
       prompt: data.prompt,
       diagram: data.diagram || '',
       options: buildNumericOptions(numericAnswer, data.unit || '', data.digits ?? 3),
@@ -144,6 +145,7 @@
     return {
       ...meta,
       type: 'choice',
+      questionKind: 'knowledge',
       prompt: data.prompt,
       diagram: data.diagram || '',
       options,
@@ -390,6 +392,45 @@
     return choiceQuestion({}, {prompt:`情報処理について、「${c.q}」に該当するものを選べ。`,options:c.o,answer:c.a,hint:'用語と役割を1対1で整理する。',formula:'情報処理用語',clue:'定義文の中心語を拾う。',steps:steps(c.q,'該当用語。','定義との対応。','選択肢を役割で比較。',c.a,'知識問題',c.a,'似た用語は目的で区別する。')});
   });
 
+
+  // 頻出テーマの知識問題（計算パターンと分けて反復）
+  add(meta('K01','theory','交流回路','RLCの虚数符号',7,'A','易',false,['H30','R01','R03','R04','R05','R06','R07']), () => {
+    return choiceQuestion({}, {prompt:'直列RLC回路の合成インピーダンスとして正しい式を選べ。',options:['Z=R+j(XL−XC)','Z=R+j(XL+XC)','Z=R−j(XL+XC)','Z=R+XL−XC'],answer:'Z=R+j(XL−XC)',hint:'コイルは+j、コンデンサは−j。',formula:'Z=R+j(XL−XC)',clue:'RLC直列では、LとCのリアクタンスは逆符号。',steps:steps('直列RLC。','合成インピーダンスの式。','Z=R+j(XL−XC)。','Lは+j、Cは−j。','Z=R+j(XL−XC)。','Ω','Z=R+j(XL−XC)。','XLとXCを同符号で足さない。')});
+  });
+  add(meta('K02','theory','三相交流','Y結線の線間電圧',7,'A','易',false,['H30','R01','R03','R04','R05','R06','R07']), () => {
+    return choiceQuestion({}, {prompt:'平衡三相Y結線で、線間電圧VLと相電圧VPの関係として正しいものを選べ。',options:['VL=√3VP','VL=VP','VL=VP/√3','VL=3VP'],answer:'VL=√3VP',hint:'Y結線の電圧は線間が√3倍。',formula:'VL=√3VP',clue:'Y結線・線間電圧・相電圧が合図。',steps:steps('平衡三相Y結線。','線間電圧と相電圧の関係。','VL=√3VP。','ベクトル差で√3倍。','VL=√3VP。','V','VL=√3VP。','電流はY結線でIL=IP。')});
+  });
+  add(meta('K03','theory','複素電力','複素電力の符号',6,'A','易',false,['R01','R03','R04','R05','R06','R07']), () => {
+    return choiceQuestion({}, {prompt:'誘導性負荷の複素電力S=P+jQについて、無効電力Qの符号はどうなるか。',options:['正','負','0','力率によらず不定'],answer:'正',hint:'誘導性は遅れ、Qは正。',formula:'S=P+jQ',clue:'誘導性・遅れ力率ならQ>0。',steps:steps('誘導性負荷。','Qの符号。','S=P+jQ。','遅れ力率ではQ>0。','正。','var','正。','容量性負荷はQ<0。')});
+  });
+  add(meta('K04','theory','変圧器','インピーダンス換算',5,'A','易',true,['R02','R07']), () => {
+    return choiceQuestion({}, {prompt:'理想変圧器で、二次側インピーダンスZ2を一次側へ換算する式を選べ。巻数比はa=N1/N2とする。',options:['Z1=a²Z2','Z1=aZ2','Z1=Z2/a','Z1=Z2/a²'],answer:'Z1=a²Z2',hint:'インピーダンスは巻数比の2乗。',formula:'Z1=a²Z2',clue:'変圧器のインピーダンス換算は比の2乗。',steps:steps('理想変圧器、a=N1/N2。','一次換算インピーダンス。','Z1=a²Z2。','電圧比と電流比の積で2乗。','Z1=a²Z2。','Ω','Z1=a²Z2。','電圧比と同じa倍ではない。')});
+  });
+  add(meta('K05','theory','相互インダクタンス','相互項の符号',5,'A','標準',true,['R02','R07']), () => {
+    return choiceQuestion({}, {prompt:'結合コイルの相互誘導項の符号を決める主な情報はどれか。',options:['ドット極性と電流方向','巻線抵抗だけ','周波数だけ','コイルの外形だけ'],answer:'ドット極性と電流方向',hint:'同名端へ同時に流入するかを見る。',formula:'相互項は±jωM',clue:'ドット極性と電流の向きでプラス・マイナスを決める。',steps:steps('結合コイル。','相互項の符号判断。','±jωM。','ドットと電流方向を確認。','ドット極性と電流方向。','知識問題','ドット極性と電流方向。','Mの大きさだけでは符号は決まらない。')});
+  });
+  add(meta('K06','control','ブロック線図','負帰還の分母',7,'A','易',false,['H30','R01','R03','R04','R05','R06','R07']), () => {
+    return choiceQuestion({}, {prompt:'前向き伝達G、フィードバック伝達Hの負帰還系の閉ループ伝達関数を選べ。',options:['G/(1+GH)','G/(1−GH)','GH/(1+G)','1/(G+H)'],answer:'G/(1+GH)',hint:'負帰還は分母が1+GH。',formula:'T=G/(1+GH)',clue:'戻り側の符号が−なら分母は1+GH。',steps:steps('負帰還系。','閉ループ伝達関数。','T=G/(1+GH)。','ループゲインはGH。','G/(1+GH)。','知識問題','G/(1+GH)。','正帰還の1−GHと逆。')});
+  });
+  add(meta('K07','control','外乱','外乱経路の分子',7,'A','標準',true,['H30','R01','R03','R05','R06','R07']), () => {
+    return choiceQuestion({}, {prompt:'制御対象Gの直前に外乱dが加わる負帰還系で、dから出力yへの伝達関数の分子に残る要素はどれか。',options:['G','K','KG','1'],answer:'G',hint:'外乱が入った後、出力までに通る要素を見る。',formula:'Y/D=G/(1+KG)',clue:'外乱位置から出力までの経路が分子。',steps:steps('外乱は制御対象Gの直前。','外乱から出力への分子。','Y/D=G/(1+KG)。','外乱はGを通って出力へ届く。','G。','知識問題','G。','目標値経路のKGと混同しない。')});
+  });
+  add(meta('K08','control','極と安定性','極の実部と応答',7,'A','易',true,['H30','R01','R04','R05','R06','R07']), () => {
+    return choiceQuestion({}, {prompt:'閉ループ極が−2±j3のとき、応答として最も適切なものを選べ。',options:['減衰しながら振動する','振幅が増えながら振動する','振動せず発散する','一定振幅で持続振動する'],answer:'減衰しながら振動する',hint:'実部が負なら減衰、虚部があれば振動。',formula:'実部<0で安定、虚部≠0で振動',clue:'実部と虚部を別々に読む。',steps:steps('極=−2±j3。','応答の形。','実部<0、虚部≠0。','減衰＋振動。','減衰しながら振動する。','知識問題','減衰しながら振動する。','虚部があるだけで不安定ではない。')});
+  });
+  add(meta('K09','control','ラウスの安定判別','ラウス表の判定箇所',5,'A','易',true,['H30','R04','R07']), () => {
+    return choiceQuestion({}, {prompt:'ラウス表で右半平面の根の個数を判定するとき、主に確認する箇所はどれか。',options:['第1列の符号変化','最上段の係数和','最終列の絶対値','対角成分の積'],answer:'第1列の符号変化',hint:'左端の列を見る。',formula:'第1列の符号変化数=右半平面根の個数',clue:'ラウス表では左端、つまり第1列を見る。',steps:steps('ラウス表。','不安定根の個数。','第1列の符号変化数。','左端を上から確認。','第1列の符号変化。','知識問題','第1列の符号変化。','行全体ではなく第1列を見る。')});
+  });
+  add(meta('K10','control','最終値定理','最終値定理の使用条件',6,'A','標準',false,['R01','R02','R05','R06']), () => {
+    return choiceQuestion({}, {prompt:'最終値定理を安全に使うための条件として最も適切なものを選べ。',options:['sY(s)の極が原点を除き左半平面にある','Y(s)に必ず積分器がある','入力が正弦波である','閉ループ極に右半平面根がある'],answer:'sY(s)の極が原点を除き左半平面にある',hint:'最終値が存在する安定な応答で使う。',formula:'lim y(t)=lim sY(s)',clue:'不安定系や持続振動では最終値が存在しない。',steps:steps('最終値定理。','使用条件。','sY(s)の極を確認。','原点以外は左半平面。','sY(s)の極が原点を除き左半平面にある。','知識問題','sY(s)の極が原点を除き左半平面にある。','式だけ当てはめず安定性を確認する。')});
+  });
+  add(meta('K11','measurement','直流電力測定','接続誤差の見分け方',5,'A','標準',true,['R02','R06']), () => {
+    return choiceQuestion({}, {prompt:'直流電力測定で、電流計が負荷電流と電圧計電流の両方を読む接続の場合、VIから差し引くべきものはどれか。',options:['電圧計の消費電力V²/rv','電流計の損失raI²','負荷の無効電力','何も引かない'],answer:'電圧計の消費電力V²/rv',hint:'電流計が余分に読んでいる電流の行き先を見る。',formula:'PL=VI−V²/rv',clue:'電流計が電圧計電流まで含むなら、電圧計消費分を引く。',steps:steps('電流計が負荷電流＋電圧計電流を測定。','VIに含まれる余分な電力。','V²/rv。','電圧計の消費電力を差し引く。','電圧計の消費電力V²/rv。','W','電圧計の消費電力V²/rv。','接続位置で引く損失が変わる。')});
+  });
+  add(meta('K12','measurement','サンプリング','標本化定理の意味',5,'A','易',false,['R03','R05','R07']), () => {
+    return choiceQuestion({}, {prompt:'最高周波数fmaxの信号を理論上エイリアシングなく標本化する条件を選べ。',options:['fs≥2fmax','fs≥fmax/2','fs=fmax','fs≤2fmax'],answer:'fs≥2fmax',hint:'最高周波数の2倍以上。',formula:'fs≥2fmax',clue:'エイリアシング防止・最高周波数が合図。',steps:steps('最高周波数fmax。','必要な標本化周波数。','fs≥2fmax。','ナイキスト条件。','fs≥2fmax。','Hz','fs≥2fmax。','実機では境界より余裕を取る。')});
+  });
+
   const FORMULAS = [
     {category:'電気・電子理論',title:'直列RLC',formula:'Z=R+j(ωL−1/ωC)',symbols:'R:抵抗[Ω]、L:インダクタンス[H]、C:静電容量[F]、ω:角周波数[rad/s]',condition:'正弦波定常状態・直列回路',clue:'R・L・Cが直列、jωを含む',mistake:'XLとXCを同符号で足さない',patterns:['T02','T03']},
     {category:'電気・電子理論',title:'三相有効電力',formula:'P=√3V_LI_Lcosφ',symbols:'V_L:線間電圧[V]、I_L:線電流[A]',condition:'平衡三相・線間値',clue:'線間電圧、線電流、力率',mistake:'3倍と√3倍を混同しない',patterns:['T06','T10']},
@@ -430,11 +471,16 @@
     if (!p) throw new Error(`Unknown pattern: ${id}`);
     return p.generate();
   }
+  const FREQUENT_PATTERNS = PATTERNS.filter(p => p.priority === 'A');
+  function getPatternKind(pattern) {
+    if (!pattern.questionKind) pattern.questionKind = pattern.generate().questionKind;
+    return pattern.questionKind;
+  }
   function selectPatterns(filters={}) {
-    return PATTERNS.filter(p => {
+    return FREQUENT_PATTERNS.filter(p => {
       if (filters.category && p.category!==filters.category) return false;
       if (filters.subcategory && p.subcategory!==filters.subcategory) return false;
-      if (filters.frequentOnly && !['A'].includes(p.priority)) return false;
+      if (filters.kind && getPatternKind(p)!==filters.kind) return false;
       if (filters.weakOnly && !p.weak) return false;
       if (filters.ids && !filters.ids.includes(p.id)) return false;
       return true;
@@ -456,5 +502,5 @@
     return result;
   }
 
-  return { VERSION, CATEGORIES, PATTERNS, FORMULAS, ANALYSIS_SUMMARY, generateById, selectPatterns, buildQuiz, checkNumeric, normalizeUnit, parseNumber, fmt, shuffle };
+  return { VERSION, CATEGORIES, PATTERNS: FREQUENT_PATTERNS, ALL_PATTERNS: PATTERNS, FORMULAS, ANALYSIS_SUMMARY, generateById, selectPatterns, buildQuiz, checkNumeric, normalizeUnit, parseNumber, fmt, shuffle };
 });
