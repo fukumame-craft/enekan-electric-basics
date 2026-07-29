@@ -56,7 +56,9 @@
     currentAnswered: false,
     timerId: null,
     examEndAt: 0,
-    lastConfig: null
+    lastConfig: null,
+    currentScreen: 'home',
+    quizOrigin: 'home'
   };
 
   let history = loadHistory();
@@ -102,13 +104,28 @@
 
   function showScreen(name) {
     stopTimer();
+    state.currentScreen = name;
     $$('.screen').forEach(el => el.classList.toggle('active', el.id === `screen-${name}`));
+    const backButton = $('#backButton');
+    if (backButton) backButton.hidden = name === 'home';
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (name === 'home') renderHome();
     if (name === 'practice') updatePracticePool();
     if (name === 'formulas') renderFormulas();
     if (name === 'records') renderRecords();
     if (name === 'analysis') renderAnalysis();
+  }
+
+  function goBack() {
+    if (state.currentScreen === 'quiz') {
+      showScreen(state.quizOrigin || 'home');
+      return;
+    }
+    if (state.currentScreen === 'result') {
+      showScreen('home');
+      return;
+    }
+    showScreen('home');
   }
 
   function categoryLabel(key) {
@@ -173,9 +190,10 @@
     const s = summarizeAttempts();
     const calculationCount = DATA.selectPatterns({ kind: 'calculation' }).length;
     const knowledgeCount = DATA.selectPatterns({ kind: 'knowledge' }).length;
+    const termCount = DATA.PATTERNS.filter(p => /^N\d+$/.test(p.id)).length;
     $('#heroStats').innerHTML = `
       <span>計算 ${calculationCount}パターン</span>
-      <span>知識 ${knowledgeCount}パターン</span>
+      <span>知識 ${knowledgeCount}（単語 ${termCount}）</span>
       <span>正答率 ${formatRate(s.correct, s.total)}</span>
       <span>連続正解 ${history.streak}問</span>`;
   }
@@ -232,6 +250,7 @@
       quiz = DATA.buildQuiz(count, config.filters || {}, Boolean(config.weighted));
     }
 
+    state.quizOrigin = state.currentScreen || 'home';
     state.quiz = quiz;
     state.index = 0;
     state.mode = config.mode || 'practice';
@@ -252,7 +271,7 @@
     if (!q) return finishQuiz();
     state.currentAnswered = false;
     const total = state.quiz.length;
-    $('#quizModeLabel').textContent = state.mode === 'exam' ? '模擬テスト' : state.mode === 'review' ? '復習' : '練習';
+    $('#quizModeLabel').textContent = state.mode === 'exam' ? '模擬テスト' : state.mode === 'review' ? '復習' : state.mode === 'random' ? 'ランダム' : '練習';
     $('#quizProgress').textContent = `${state.index + 1} / ${total}`;
     $('#progressBar').style.width = `${(state.index / total) * 100}%`;
     $('#questionCategory').textContent = `${q.questionKind === 'calculation' ? '計算問題' : '知識問題'} / ${categoryLabel(q.category)} / ${q.subcategory}`;
@@ -313,17 +332,16 @@
   }
 
   function compactExplanation(q) {
-    const isCalculation = q.questionKind === 'calculation';
-    const work = isCalculation
-      ? `${q.formula}
-${q.steps[3]?.text || ''}
-${q.steps[4]?.text || ''}`
-      : `${q.formula}
-${q.steps[4]?.text || q.answerText}`;
+    if (q.questionKind === 'calculation') {
+      const calculation = [q.steps[3]?.text, q.steps[4]?.text].filter(Boolean).join('\n');
+      return [
+        { label: '解法', text: `${q.clue}\n${q.formula}` },
+        { label: '計算', text: calculation },
+        { label: '注意', text: q.steps[7]?.text || '' }
+      ];
+    }
     return [
-      { label: '要点', text: q.clue },
-      { label: isCalculation ? '式・計算' : '根拠', text: work },
-      { label: '答え', text: q.answerText },
+      { label: '根拠', text: `${q.clue}\n${q.formula}` },
       { label: '注意', text: q.steps[7]?.text || '' }
     ];
   }
@@ -332,7 +350,6 @@ ${q.steps[4]?.text || q.answerText}`;
     $('#submitAnswer').disabled = true;
     $('#judgement').className = `judgement ${correct ? 'correct' : 'wrong'}`;
     $('#judgement').textContent = correct ? '○ 正解' : `× 不正解　正解：${q.answerText}${reason ? `（${reason}）` : ''}`;
-    $('#clueText').textContent = q.clue;
     $('#explanationSteps').innerHTML = compactExplanation(q).map(step => `<div class="step compact-step"><strong>${escapeHtml(step.label)}</strong><p>${escapeHtml(step.text)}</p></div>`).join('');
     $('#nextButton').textContent = state.index === state.quiz.length - 1 ? '結果を見る' : '次の問題';
     $('#explanationPanel').hidden = false;
@@ -559,7 +576,8 @@ ${q.steps[4]?.text || q.answerText}`;
   }
 
   function bindEvents() {
-    $('#homeButton').addEventListener('click', () => showScreen('home'));
+    $('#brandButton').addEventListener('click', () => showScreen('home'));
+    $('#backButton').addEventListener('click', goBack);
     document.addEventListener('click', event => {
       const screenButton = event.target.closest('[data-screen]');
       if (screenButton) showScreen(screenButton.dataset.screen);
@@ -567,6 +585,7 @@ ${q.steps[4]?.text || q.answerText}`;
       const action = event.target.closest('[data-action]')?.dataset.action;
       if (action === 'calculation') startQuiz({ count: 10, filters: { kind: 'calculation' }, weighted: true, mode: 'practice' });
       if (action === 'knowledge') startQuiz({ count: 10, filters: { kind: 'knowledge' }, weighted: true, mode: 'practice' });
+      if (action === 'random') startQuiz({ count: 10, filters: {}, weighted: false, mode: 'random' });
       if (action === 'wrong') {
         const ids = wrongPatternIds();
         startQuiz({ count: Math.min(Math.max(ids.length * 2, 5), 20), ids, mode: 'review' });
