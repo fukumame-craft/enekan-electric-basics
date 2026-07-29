@@ -135,7 +135,7 @@
 
   function displayQuestionTitle(q) {
     if (q.questionKind !== 'knowledge') return q.title;
-    if (q.knowledgeType === 'official-multi-blank') return '公式過去問対応・複数空欄';
+    if (q.knowledgeType === 'official-multi-blank') return '公式過去問対応・最大2空欄';
     if (q.knowledgeType === 'exam-cloze') return '公式過去問型・空欄補充';
     return '知識・判断問題';
   }
